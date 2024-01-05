@@ -1,64 +1,65 @@
-### GLOBO WEB APP
+### GLOBO WEB APP#####################
 #PROVIDERS
-###
+#######################################
 provider "google" {
-  project = "brauss2024"
-  region = "us-central1" 
+  project = var.gcp_project
+  region  = var.gcp_region
 }
 
-###
-#DATA skipped at the momment
-###
-
-
-###
+#######################################
 #RESOURCES
-###
+#######################################
 
 # VPC
 resource "google_compute_network" "vpc_network" {
-    name = "vpc-network"
-    auto_create_subnetworks = false
-    mtu = 1460  
+  name                    = "vpc-network"
+  auto_create_subnetworks = false
+  mtu                     = var.gcp_mtu
 }
 
 # SUBNET
 resource "google_compute_subnetwork" "vpc_subnet" {
-    name = "subnet"
-    ip_cidr_range = "10.0.0.0/24"
-    network = google_compute_network.vpc_network.id
+  name          = "subnet"
+  ip_cidr_range = var.gcp_ip_cidr_range
+  network       = google_compute_network.vpc_network.id
 }
 
 # FIREWALL
 resource "google_compute_firewall" "firewall" {
-  name = "myfirewall"
+  name    = "myfirewall"
   network = google_compute_network.vpc_network.name
   allow {
     protocol = "tcp"
-    ports = ["22", "8080"]
+    ports    = var.gcp_ports_firewall_rule
   }
-  source_tags = ["web"]
+  source_tags = var.gcp_source_tags
 }
 
 # VM GCE
 resource "google_compute_instance" "default" {
-  name = "my-instance"
-  machine_type = "e2-micro"
-  zone = "us-central1-a"
-  tags = ["web"]
+  name         = "my-instance"
+  machine_type = var.gcp_vm_machine_type
+  zone         = var.gcp_zone
+  tags         = var.gcp_source_tags
+  labels       = local.common_tags
   boot_disk {
     initialize_params {
-      image= "debian-cloud/debian-11"        
-      labels = {
-        mylabel = "foo"
-      }
+      image = var.gcp_vm_image
     }
   }
   network_interface {
-    network = google_compute_network.vpc_network.id
+    network    = google_compute_network.vpc_network.id
     subnetwork = google_compute_subnetwork.vpc_subnet.id
   }
-  metadata_startup_script = "echo hi > /test.txt"
+  metadata_startup_script = <<EOF
+  #! /bin/bash
+  apt update
+  apt install -y apache2
+  sudo rm /var/www/html/index.html
+  echo '<html><body><h2>Welcome to your custom website.</h2><h3>Created with a direct input startup script!</h3></body></html>' > /var/www/html/index.html
+  EOF
+  
+  #echo hi > /test.txt
   #service_account {
   #  email = google_service_account.default.email
   #  scopes = ["cloud-platform"]
