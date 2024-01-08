@@ -5,9 +5,9 @@ variable "gcp_project" {
 }
 
 variable "gcp_region" {
-  type        = string
+  type        = list(string)
   description = "Region in GCP to create the project"
-  default     = "us-central1"
+  default     = ["us-central1", "us-west1"]
 }
 
 variable "gcp_zone" {
@@ -22,22 +22,22 @@ variable "gcp_mtu" {
   default     = 1460
 }
 
-variable "gcp_ip_cidr_range" {
-  type        = string
-  description = "IP Range for the subnet"
-  default     = "10.0.0.0/24"
+variable "gcp_vpcs_subnet_ip_cidr_range" {
+  type        = list(string)
+  description = "IP Range for subnets in VPC"
+  default     = ["10.0.0.0/24", "10.0.1.0/24"]
 }
 
 variable "gcp_source_tags" {
   type        = list(string)
   description = "Source tags to apply Firewall rule"
-  default     = ["web"]
+  default     = ["web", "http-server", "https-server"]
 }
 
 variable "gcp_ports_firewall_rule" {
   type        = list(string)
   description = "Ports to be allowed in tcp"
-  default     = ["22", "8080"]
+  default     = ["22", "8080", "80", "443"]
 }
 
 variable "gcp_vm_machine_type" {
@@ -49,7 +49,12 @@ variable "gcp_vm_machine_type" {
 variable "gcp_vm_image" {
   type        = string
   description = "VM image"
-  default     = "debian-cloud/debian-11"
+  default     = "projects/debian-cloud/global/images/family/debian-11"
+}
+
+variable "network_prefix" {
+  type    = string
+  default = "multi-mig-lb-http"
 }
 
 #company
