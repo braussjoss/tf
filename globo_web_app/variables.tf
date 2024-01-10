@@ -23,9 +23,21 @@ variable "gcp_mtu" {
 }
 
 variable "gcp_vpcs_subnet_ip_cidr_range" {
-  type        = list(string)
+  type        = string
   description = "IP Range for subnets in VPC"
-  default     = ["10.0.0.0/24", "10.0.1.0/24"]
+  default     = "10.0.0.0/16"
+}
+
+variable "vpc_subnet_count" {
+  type        = number
+  description = "Number of subnets to create"
+  default     = 2
+}
+
+variable "mig_count" {
+  type        = number
+  description = "Number of migs to be created"
+  default     = 2 #Remember to update gcp_region[] var
 }
 
 variable "gcp_source_tags" {
@@ -74,4 +86,16 @@ variable "project" {
 variable "billing_code" {
   type        = string
   description = "Billing code name for resource tagging"
+}
+
+variable "naming_prefix" {
+  type = string
+  description = "Namiong prefix for all resources"
+  default = "globo-web-app"
+}
+
+variable "environment" {
+  type = string
+  description = "Environment for the resources"
+ default = "dev" 
 }

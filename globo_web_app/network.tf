@@ -1,94 +1,53 @@
 ### GLOBO WEB APP#####################
-#PROVIDERS
-#######################################
-provider "google" {
-  project = var.gcp_project
-  region  = var.gcp_region[0]
-}
-
-
 #######################################
 #DATA SOURCE
 #######################################
 data "google_compute_zones" "available" {
 }
 
-
 #######################################
 #RESOURCES
 #######################################
-
 # VPC
 resource "google_compute_network" "vpc_network" {
-  name                    = "vpc-network"
+  name                    = "${local.naming_prefix}-vpc-network"
   auto_create_subnetworks = false
   mtu                     = var.gcp_mtu
 }
-
-# SUBNET 1
-resource "google_compute_subnetwork" "vpc_subnet1" {
-  name                     = "subnet1"
-  ip_cidr_range            = var.gcp_vpcs_subnet_ip_cidr_range[0]
-  network                  = google_compute_network.vpc_network.id
-  region                   = var.gcp_region[0]
+# SUBNETS
+resource "google_compute_subnetwork" "vpc_subnets" {
+  count = var.vpc_subnet_count
+  name          = "${local.naming_prefix}-subnet${count.index}"
+  ip_cidr_range = cidrsubnet(var.gcp_vpcs_subnet_ip_cidr_range,8,count.index+1)
+  network       = google_compute_network.vpc_network.id
+  region        = var.gcp_region[count.index]
   #private_ip_google_access = true
 }
-# Router and Cloud NAT are required for installing packages from repos (apache, php etc)
-# ROUTER 1
-resource "google_compute_router" "group1" {
-  name    = "router-gw-group1"
+# ROUTERS
+resource "google_compute_router" "groups" {
+  count = var.vpc_subnet_count
+  name    = "${local.naming_prefix}-router-gw-group${count.index}"
   network = google_compute_network.vpc_network.self_link
-  region  = var.gcp_region[0]
+  region  = var.gcp_region[count.index]
 }
-# CLOUD NAT 1
-module "cloud-nat-group1" {
+# CLOUD NATS
+module "cloud-nat-groups" {
+  count = var.vpc_subnet_count
   source     = "terraform-google-modules/cloud-nat/google"
   version    = "~> 2.2"
-  router     = google_compute_router.group1.name
+  router     = google_compute_router.groups[count.index].name
   project_id = var.gcp_project
-  region     = var.gcp_region[0]
-  name       = "cloud-nat-group1"
+  region     = var.gcp_region[count.index]
+  name       = "${local.naming_prefix}-cloud-nat-group${count.index}"
 }
-
-
-# SUBNET 2
-resource "google_compute_subnetwork" "vpc_subnet2" {
-  name                     = "subnet2"
-  ip_cidr_range            = var.gcp_vpcs_subnet_ip_cidr_range[1]
-  network                  = google_compute_network.vpc_network.id
-  region                   = var.gcp_region[1]
-  #private_ip_google_access = true
-}
-# ROUTER 2
-resource "google_compute_router" "group2" {
-  name    = "router-gw-group2"
-  network = google_compute_network.vpc_network.self_link
-  region  = var.gcp_region[1]
-}
-# CLOUD NAT 2
-module "cloud-nat-group2" {
-  source     = "terraform-google-modules/cloud-nat/google"
-  version    = "~> 2.2"
-  router     = google_compute_router.group2.name
-  project_id = var.gcp_project
-  region     = var.gcp_region[1]
-  name       = "cloud-nat-group2"
-}
-
 
 # [START cloudloadbalancing_ext_http_gce]
-
 module "gce-lb-http" {
   source  = "terraform-google-modules/lb-http/google"
   version = "~> 10.0"
-  name    = var.network_prefix
+  name    = "${local.naming_prefix}-${var.network_prefix}"
   project = var.gcp_project
-  target_tags = [
-    google_compute_subnetwork.vpc_subnet1.name,
-    module.cloud-nat-group1.router_name,
-    google_compute_subnetwork.vpc_subnet2.name,
-    module.cloud-nat-group2.router_name
-  ]
+  target_tags = concat(google_compute_subnetwork.vpc_subnets[*].name , module.cloud-nat-groups[*].router_name)
   firewall_networks = [google_compute_network.vpc_network.name]
 
   backends = {
@@ -109,19 +68,13 @@ module "gce-lb-http" {
         enable      = true
         sample_rate = 1.0
       }
-
-      groups = [
-        {
-          group = module.mig1.instance_group
-        },
-        {
-          group = module.mig2.instance_group
-        }
-      ]
-
+      
       iap_config = {
         enable = false
       }
+
+      groups=[for m in module.migs[*].instance_group: {group = m}]
+
     }
   }
 }
@@ -130,7 +83,7 @@ module "gce-lb-http" {
 
 # FIREWALL
 resource "google_compute_firewall" "firewall" {
-  name    = "myfirewall"
+  name    = "${local.naming_prefix}-firewall"
   network = google_compute_network.vpc_network.name
   allow {
     protocol = "tcp"
