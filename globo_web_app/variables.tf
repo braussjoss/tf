@@ -89,13 +89,13 @@ variable "billing_code" {
 }
 
 variable "naming_prefix" {
-  type = string
+  type        = string
   description = "Namiong prefix for all resources"
-  default = "globo-web-app"
+  default     = "globo-web-app"
 }
 
 variable "environment" {
-  type = string
+  type        = string
   description = "Environment for the resources"
- default = "dev" 
+  default     = "dev"
 }

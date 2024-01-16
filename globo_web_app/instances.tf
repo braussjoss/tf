@@ -1,9 +1,11 @@
 module "mig_templates" {
-  count        = var.mig_count
-  source       = "terraform-google-modules/vm/google//modules/instance_template"
-  version      = "~> 7.9"
-  network      = google_compute_network.vpc_network.self_link
-  subnetwork   = google_compute_subnetwork.vpc_subnets[count.index].self_link
+  count   = var.mig_count
+  source  = "terraform-google-modules/vm/google//modules/instance_template"
+  version = "~> 7.9"
+  network = module.vpc.network_self_link
+  #network      = google_compute_network.vpc_network.self_link
+  subnetwork = module.vpc.subnets_self_links[count.index]
+  #subnetwork   = google_compute_subnetwork.vpc_subnets[count.index].self_link
   machine_type = var.gcp_vm_machine_type
   source_image = var.gcp_vm_image
   disk_size_gb = 10
@@ -11,38 +13,37 @@ module "mig_templates" {
     email  = ""
     scopes = ["cloud-platform"]
   }
-  name_prefix    = google_compute_network.vpc_network.name
-  startup_script = templatefile("${path.module}/templates/startupscript.tpl",{
-    gcs_bucket_name = google_storage_bucket.gcs_bucket.name
+  name_prefix = module.vpc.network_name
+  #name_prefix    = google_compute_network.vpc_network.name
+  startup_script = templatefile("${path.module}/templates/startupscript.tpl", {
+    #gcs_bucket_name = google_storage_bucket.gcs_bucket.name
+    gcs_bucket_name = module.bucket.bucket_name
   })
-  /*<<EOF
-  #! /bin/bash
-  apt update
-  apt install -y apache2
-  sudo rm /var/www/html/index.html
-  gsutil cp gs://${google_storage_bucket.gcs_bucket.name}/website/index.html /var/www/html/
-  gsutil cp gs://${google_storage_bucket.gcs_bucket.name}/website/prometheus.png /var/www/html/
-  EOF*/
   tags = concat([
-    google_compute_network.vpc_network.name,
+    module.vpc.network_name,
+    #google_compute_network.vpc_network.name,
   google_compute_router.groups[count.index].name], var.gcp_source_tags)
 }
 
 module "migs" {
-  count = var.mig_count
+  count             = var.mig_count
   source            = "terraform-google-modules/vm/google//modules/mig"
   version           = "~> 7.9"
+  #project           = var.gcp_project
   instance_template = module.mig_templates[count.index].self_link
-  region            = var.gcp_region[count.index % var.vpc_subnet_count]
-  hostname          = google_compute_network.vpc_network.name
-  mig_name          = "${local.naming_prefix}-mig-${count.index}-${var.gcp_region[count.index]}"
-  target_size       = 1
+  region            = var.gcp_region[count.index] # % (var.vpc_subnet_count - 1)]
+  hostname          = module.vpc.network_name
+  #hostname          = google_compute_network.vpc_network.name
+  mig_name    = "${local.naming_prefix}-mig-${count.index}-${var.gcp_region[count.index]}"
+  target_size = 1
   named_ports = [{
     name = "http",
     port = 80
   }]
-  network    = google_compute_network.vpc_network.self_link
-  subnetwork = google_compute_subnetwork.vpc_subnets[count.index].self_link
+  network = module.vpc.network_self_link
+  #network    = google_compute_network.vpc_network.network_self_link
+  #subnetwork = google_compute_subnetwork.vpc_subnets[count.index].self_link
+  subnetwork = module.vpc.subnets_self_links[count.index]
   depends_on = [google_storage_bucket_object.website_content]
 }
 
