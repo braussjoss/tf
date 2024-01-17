@@ -8,6 +8,7 @@ It uses :
 - Modules (terraform)
 - Custom modules.
 - Functions
+- Local Backend.
 
 
 Links: 
